@@ -34,6 +34,7 @@ struct LoginView: View {
     @State private var host = "195.18.27.241"
     @State private var port = "2646"
     @State private var nick = "iplayer"
+    @State private var clientVersion = "0.3.7"
 
     var body: some View {
         ZStack {
@@ -53,8 +54,10 @@ struct LoginView: View {
                 field("Сервер", text: $host, keyboard: .URL)
                 field("Порт", text: $port, keyboard: .numberPad)
                 field("Ник", text: $nick, keyboard: .default)
+                field("Версия клиента", text: $clientVersion, keyboard: .default)
 
                 Button {
+                    samp_set_client_version(clientVersion)
                     engine.connect(host: host, port: Int(port) ?? 7777, nick: nick)
                 } label: {
                     Text("Войти")

@@ -459,7 +459,7 @@ void Client::OnPacket(Packet* packet) {
             char key[269] = {};
             gen_auth_key(key, challenge);
             m_pendingAuthReply.assign(key);
-            Log("auth key computed");
+            Log(std::string("auth key computed, challenge=") + challenge + " key=" + key);
             break;
         }
         case ID_CONNECTION_REQUEST_ACCEPTED: {
@@ -474,19 +474,34 @@ void Client::OnPacket(Packet* packet) {
             challenge ^= static_cast<uint32_t>(kClientVersion);
             m_localId = playerId;
             SetState(kStateJoining);
-            Log("handshake ok, local id " + std::to_string(playerId));
+            Log("handshake ok, local id " + std::to_string(playerId) + " srvChallenge=" +
+                std::to_string(challenge ^ static_cast<uint32_t>(kClientVersion)));
             SendClientJoin(challenge);
             m_joinAtMs = NowMs();
             break;
         }
         case ID_DISCONNECTION_NOTIFICATION:
-            SetState(kStateError, "server closed the connection");
+        case ID_CONNECTION_LOST: {
+            // A drop right after ClientJoin usually means the server rejected our
+            // auth token; retry once with the other one before giving up.
+            const bool rejectedJoin = (m_state == kStateJoining || m_state == kStateSpawning);
+            if (rejectedJoin && m_authVariant == 0) {
+                m_authVariant = 1;
+                Log("join rejected, retrying with AUTH_BS variant 2");
+                m_net.Stop();
+                ResetSession();
+                m_net.Start(m_host.c_str(), m_port);
+                RegisterRpcs();
+                m_connectAttempts = 0;
+                m_connectAtMs = 0.0;
+                m_state = kStateConnecting;
+                break;
+            }
+            SetState(kStateError, id == ID_CONNECTION_LOST ? "connection lost"
+                                                           : "server closed the connection");
             m_net.Stop();
             break;
-        case ID_CONNECTION_LOST:
-            SetState(kStateError, "connection lost");
-            m_net.Stop();
-            break;
+        }
         case ID_CONNECTION_ATTEMPT_FAILED:
             Log("connection attempt failed");
             m_connectAtMs = 0.0;  // retry immediately in Tick
@@ -800,12 +815,20 @@ void Client::RespondDialog(int button, const std::string& input, int listItem) {
 
 // ----------------------------------------------------------------- handshake
 void Client::SendClientJoin(uint32_t challenge) {
+    // Two AUTH_BS tokens ship with the Android sources; the server build we talk
+    // to may expect either one, so try them in turn when the join is rejected.
+    static const char* kAuthVariants[] = {
+        "E02262CF28BC542486C558D4BE9EFB716592AFAF8B",
+        "39FB2DEEDB49ACFB8D4EECE6953D2507988CCCF4410",
+    };
     char authKey[269] = {};
-    gen_auth_key(authKey, const_cast<char*>(kAuthBs));
+    const char* token = kAuthVariants[m_authVariant % 2];
+    gen_auth_key(authKey, const_cast<char*>(token));
 
     const uint8_t nameLen = static_cast<uint8_t>(m_nick.size());
     const uint8_t authLen = static_cast<uint8_t>(std::strlen(authKey));
-    const uint8_t modLen = static_cast<uint8_t>(std::strlen(kModName));
+    const std::string version = m_clientVersion.empty() ? kModName : m_clientVersion;
+    const uint8_t modLen = static_cast<uint8_t>(version.size());
 
     RakNet::BitStream bs;
     bs.Write(static_cast<int>(kClientVersion));
@@ -816,10 +839,12 @@ void Client::SendClientJoin(uint32_t challenge) {
     bs.Write(authLen);
     bs.Write(authKey, authLen);
     bs.Write(modLen);
-    bs.Write(kModName, modLen);
+    bs.Write(version.c_str(), modLen);
 
     m_net.Rpc(&RPC_ClientJoin, bs, HIGH_PRIORITY, RELIABLE, 0);
-    Log("ClientJoin sent");
+    Log("ClientJoin sent: ver=" + std::to_string(kClientVersion) + " mod=1 nick=" + m_nick +
+        " challenge=" + std::to_string(challenge) + " authLen=" + std::to_string(authLen) +
+        " client=" + version);
 }
 
 void Client::SendRequestClass() {

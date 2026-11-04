@@ -44,6 +44,10 @@ public:
     // Call at display rate. Pumps the socket, simulates movement, sends sync.
     void Tick();
 
+    // Client build string sent in ClientJoin; some servers validate it strictly.
+    void SetClientVersion(const std::string& version) { m_clientVersion = version; }
+    const std::string& ClientVersion() const { return m_clientVersion; }
+
     void SetInput(float lr, float ud, bool sprint, bool jump);
     void SetCameraYaw(float degrees) { m_cameraYaw = degrees; }
     void SendChat(const std::string& text);
@@ -104,6 +108,7 @@ private:
     std::string m_error;
     std::string m_nick;
     std::string m_host;
+    std::string m_clientVersion = "0.3.7";
     unsigned short m_port = 7777;
 
     uint16_t m_localId = kInvalidPlayerId;
@@ -129,6 +134,7 @@ private:
     double m_joinAtMs = 0.0;
     double m_spawnRequestAtMs = 0.0;
     double m_spawnAtMs = 0.0;
+    int m_authVariant = 0;
     int m_connectAttempts = 0;
     bool m_waitingSpawnReply = false;
 

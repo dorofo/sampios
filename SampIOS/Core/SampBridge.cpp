@@ -30,6 +30,10 @@ int32_t samp_connect(const char* host, int32_t port, const char* nick) {
     return Client::Get().Connect(host, static_cast<unsigned short>(port), nick) ? 1 : 0;
 }
 
+void samp_set_client_version(const char* version) {
+    Client::Get().SetClientVersion(version ? version : "");
+}
+
 void samp_disconnect(void) {
     Client::Get().Disconnect();
 }

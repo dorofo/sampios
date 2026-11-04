@@ -32,6 +32,7 @@ typedef struct SampRemote {
 
 void samp_init(void);
 int32_t samp_connect(const char* host, int32_t port, const char* nick);
+void samp_set_client_version(const char* version);
 void samp_disconnect(void);
 void samp_tick(void);
 void samp_set_input(float lr, float ud, int32_t sprint, int32_t jump);
