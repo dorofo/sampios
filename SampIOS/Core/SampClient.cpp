@@ -1,5 +1,6 @@
 #include "SampClient.h"
 
+#include "FileLog.h"
 #include "PlayerSync.h"
 
 #include "BitStream.h"
@@ -108,6 +109,25 @@ bool Client::Connect(const std::string& host, unsigned short port, const std::st
     m_nick = nick.substr(0, kMaxNameLen);
     if (m_nick.empty()) m_nick = "iosplayer";
 
+    if (m_logs.empty()) {
+        const char* home = std::getenv("HOME");
+        std::string dir = home ? home : ".";
+        filelog::Init(dir + "/Documents/samp.log");
+        const std::string previous = filelog::PreviousSessionTail(24);
+        if (!previous.empty()) {
+            m_logs.push_back("--- previous session (tail) ---");
+            std::string line;
+            for (char c : previous) {
+                if (c == '\n') {
+                    m_logs.push_back(line);
+                    line.clear();
+                } else {
+                    line += c;
+                }
+            }
+        }
+    }
+
     m_connectAttempts = 0;
     m_rxLogBudget = 80;
     const unsigned short logPort = LogPort();
@@ -182,6 +202,7 @@ void Client::SetState(int state, const char* reason) {
 void Client::Log(const std::string& line) {
     m_logs.push_back(line);
     while (m_logs.size() > 400) m_logs.pop_front();
+    filelog::Write(line);
 }
 
 std::string Client::DumpLogText() const {
@@ -821,9 +842,11 @@ void Client::SendClientJoin(uint32_t challenge) {
         "E02262CF28BC542486C558D4BE9EFB716592AFAF8B",
         "39FB2DEEDB49ACFB8D4EECE6953D2507988CCCF4410",
     };
+    filelog::Stage("join:authgen:begin");
     char authKey[269] = {};
     const char* token = kAuthVariants[m_authVariant % 2];
     gen_auth_key(authKey, const_cast<char*>(token));
+    filelog::Stage("join:authgen:end");
 
     const uint8_t nameLen = static_cast<uint8_t>(m_nick.size());
     const uint8_t authLen = static_cast<uint8_t>(std::strlen(authKey));
@@ -841,7 +864,9 @@ void Client::SendClientJoin(uint32_t challenge) {
     bs.Write(modLen);
     bs.Write(version.c_str(), modLen);
 
+    filelog::Stage("join:rpc:begin");
     m_net.Rpc(&RPC_ClientJoin, bs, HIGH_PRIORITY, RELIABLE, 0);
+    filelog::Stage("join:rpc:end");
     Log("ClientJoin sent: ver=" + std::to_string(kClientVersion) + " mod=1 nick=" + m_nick +
         " challenge=" + std::to_string(challenge) + " authLen=" + std::to_string(authLen) +
         " client=" + version);
