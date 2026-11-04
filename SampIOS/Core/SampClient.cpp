@@ -349,6 +349,25 @@ void Client::Tick() {
         Log(sent ? "auth key sent" : "auth key NOT sent (connection not ready)");
     }
 
+    // ClientJoin goes out only now, when the connection is CONNECTED, and the
+    // auth answer is repeated first: the copy sent during the handshake is
+    // queued on a link that is not established yet and never leaves.
+    if (m_pendingJoin && m_net.Connected()) {
+        m_pendingJoin = false;
+        if (!m_authChallenge.empty()) {
+            char key[269] = {};
+            gen_auth_key(key, const_cast<char*>(m_authChallenge.c_str()));
+            const uint8_t keyLen = static_cast<uint8_t>(std::strlen(key));
+            RakNet::BitStream resend;
+            resend.Write(static_cast<uint8_t>(ID_AUTH_KEY));
+            resend.Write(keyLen);
+            resend.Write(key, keyLen);
+            m_net.Send(resend, SYSTEM_PRIORITY, RELIABLE, 0);
+            Log("auth key re-sent after connect");
+        }
+        SendClientJoin(m_joinChallenge);
+    }
+
     // Packet handlers only raise these flags: destroying the transport from
     // inside Pump() would free the client whose queue is being drained.
     if (m_needStop || m_needReconnect) {
@@ -537,6 +556,7 @@ void Client::OnPacket(Packet* packet) {
             bs.Read(challenge, len);
             challenge[len] = '\0';
 
+            m_authChallenge.assign(challenge);
             char key[269] = {};
             gen_auth_key(key, challenge);
             m_pendingAuthReply.assign(key);
@@ -557,7 +577,8 @@ void Client::OnPacket(Packet* packet) {
             SetState(kStateJoining);
             Log("handshake ok, local id " + std::to_string(playerId) + " srvChallenge=" +
                 std::to_string(challenge ^ static_cast<uint32_t>(kClientVersion)));
-            SendClientJoin(challenge);
+            m_pendingJoin = true;
+            m_joinChallenge = challenge;
             m_joinAtMs = NowMs();
             break;
         }

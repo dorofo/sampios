@@ -149,6 +149,11 @@ private:
     // Auth answers are queued here and flushed from Tick() so that no send ever
     // happens inside a packet callback.
     std::string m_pendingAuthReply;
+    // The auth answer sent before the connection is CONNECTED never leaves the
+    // box, so remember the challenge and answer again right before ClientJoin.
+    std::string m_authChallenge;
+    bool m_pendingJoin = false;
+    uint32_t m_joinChallenge = 0;
     DialogInfo m_dialog;
     int m_rxLogBudget = 80;
 
