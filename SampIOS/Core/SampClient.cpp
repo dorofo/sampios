@@ -99,20 +99,12 @@ Client& Client::Get() {
     return instance;
 }
 
-// ----------------------------------------------------------------- lifecycle
-bool Client::Connect(const std::string& host, unsigned short port, const std::string& nick) {
-    Disconnect();
-    ResetSession();
-
-    m_host = host;
-    m_port = port;
-    m_nick = nick.substr(0, kMaxNameLen);
-    if (m_nick.empty()) m_nick = "iosplayer";
+void Client::InitDiagnostics() {
+    const char* home = std::getenv("HOME");
+    const std::string dir = home ? home : ".";
+    filelog::Init(dir + "/Documents/samp.log");
 
     if (m_logs.empty()) {
-        const char* home = std::getenv("HOME");
-        std::string dir = home ? home : ".";
-        filelog::Init(dir + "/Documents/samp.log");
         const std::string previous = filelog::PreviousSessionTail(24);
         if (!previous.empty()) {
             m_logs.push_back("--- previous session (tail) ---");
@@ -127,6 +119,21 @@ bool Client::Connect(const std::string& host, unsigned short port, const std::st
             }
         }
     }
+
+    LogPort();
+}
+
+// ----------------------------------------------------------------- lifecycle
+bool Client::Connect(const std::string& host, unsigned short port, const std::string& nick) {
+    Disconnect();
+    ResetSession();
+
+    m_host = host;
+    m_port = port;
+    m_nick = nick.substr(0, kMaxNameLen);
+    if (m_nick.empty()) m_nick = "iosplayer";
+
+    InitDiagnostics();
 
     m_connectAttempts = 0;
     m_rxLogBudget = 80;

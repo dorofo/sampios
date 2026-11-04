@@ -72,6 +72,23 @@ struct LoginView: View {
                 Text(engine.status)
                     .font(.system(size: 13, design: .monospaced))
                     .foregroundStyle(.white.opacity(0.6))
+
+                if !engine.logs.isEmpty {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("ЛОГ ПРОШЛОЙ СЕССИИ")
+                            .font(.system(size: 10, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.45))
+                        ForEach(Array(engine.logs.suffix(8).enumerated()), id: \.offset) { _, line in
+                            Text(line)
+                                .font(.system(size: 9, design: .monospaced))
+                                .foregroundStyle(.white.opacity(0.8))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                    .padding(8)
+                    .background(Color.black.opacity(0.35))
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
             }
             .padding(28)
             .frame(maxWidth: 420)

@@ -38,6 +38,9 @@ class Client {
 public:
     static Client& Get();
 
+    // Starts the file log and the HTTP log endpoint; safe to call repeatedly.
+    void InitDiagnostics();
+
     bool Connect(const std::string& host, unsigned short port, const std::string& nick);
     void Disconnect();
 

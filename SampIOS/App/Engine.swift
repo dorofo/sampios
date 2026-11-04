@@ -47,6 +47,7 @@ final class GameEngine: ObservableObject {
     init() {
         samp_init()
         buildScene()
+        drainQueues()  // surface the previous session tail on the login screen
     }
 
     // MARK: - Scene

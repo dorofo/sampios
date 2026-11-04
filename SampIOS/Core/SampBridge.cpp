@@ -22,7 +22,7 @@ void CopyString(char* dst, int cap, const std::string& src) {
 extern "C" {
 
 void samp_init(void) {
-    Client::Get();
+    Client::Get().InitDiagnostics();
 }
 
 int32_t samp_connect(const char* host, int32_t port, const char* nick) {
