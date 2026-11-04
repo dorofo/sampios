@@ -1,0 +1,83 @@
+name: SampIOS
+
+options:
+  bundleIdPrefix: com.dorofo
+  createIntermediateGroups: true
+  deploymentTarget:
+    iOS: "15.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    CLANG_CXX_LANGUAGE_STANDARD: "gnu++14"
+    CLANG_CXX_LIBRARY: "libc++"
+    ENABLE_BITCODE: "NO"
+    ONLY_ACTIVE_ARCH: "NO"
+    GCC_WARN_ABOUT_RETURN_TYPE: "NO"
+    CLANG_WARN_DOCUMENTATION_COMMENTS: "NO"
+
+targets:
+  SampIOS:
+    type: application
+    platform: iOS
+    deploymentTarget: "15.0"
+    info:
+      path: SampIOS/Info.plist
+      properties:
+        CFBundleDisplayName: SAMP iOS
+        CFBundleShortVersionString: "0.1"
+        CFBundleVersion: "1"
+        UILaunchScreen: {}
+        UIRequiresFullScreen: true
+        UIStatusBarHidden: true
+        UIViewControllerBasedStatusBarAppearance: false
+        NSLocalNetworkUsageDescription: "Доступ к локальной сети нужен, чтобы подключаться к игровому серверу по Wi-Fi."
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+    sources:
+      - path: SampIOS/App
+      - path: SampIOS/Core
+      # RakNet: only the translation units the client actually links.
+      - path: SampIOS/vendor/raknet/BitStream.cpp
+      - path: SampIOS/vendor/raknet/CheckSum.cpp
+      - path: SampIOS/vendor/raknet/DataBlockEncryptor.cpp
+      - path: SampIOS/vendor/raknet/DS_ByteQueue.cpp
+      - path: SampIOS/vendor/raknet/DS_HuffmanEncodingTree.cpp
+      - path: SampIOS/vendor/raknet/DS_Table.cpp
+      - path: SampIOS/vendor/raknet/EncodeClassName.cpp
+      - path: SampIOS/vendor/raknet/GetTime.cpp
+      - path: SampIOS/vendor/raknet/InternalPacketPool.cpp
+      - path: SampIOS/vendor/raknet/NetworkTypes.cpp
+      - path: SampIOS/vendor/raknet/PluginInterface.cpp
+      - path: SampIOS/vendor/raknet/RakClient.cpp
+      - path: SampIOS/vendor/raknet/RakPeer.cpp
+      - path: SampIOS/vendor/raknet/RakNetStatistics.cpp
+      - path: SampIOS/vendor/raknet/RakSleep.cpp
+      - path: SampIOS/vendor/raknet/Rand.cpp
+      - path: SampIOS/vendor/raknet/ReliabilityLayer.cpp
+      - path: SampIOS/vendor/raknet/RPCMap.cpp
+      - path: SampIOS/vendor/raknet/SHA1.cpp
+      - path: SampIOS/vendor/raknet/SimpleMutex.cpp
+      - path: SampIOS/vendor/raknet/SocketLayer.cpp
+      - path: SampIOS/vendor/raknet/StringCompressor.cpp
+      - path: SampIOS/vendor/raknet/StringTable.cpp
+      - path: SampIOS/vendor/raknet/TableSerializer.cpp
+      - path: SampIOS/vendor/raknet/rijndael.cpp
+      - path: SampIOS/vendor/raknet/SAMP/samp_auth.cpp
+      - path: SampIOS/vendor/raknet/SAMP/samp_netencr.cpp
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dorofo.sampios
+        INFOPLIST_FILE: SampIOS/Info.plist
+        TARGETED_DEVICE_FAMILY: "1"
+        HEADER_SEARCH_PATHS:
+          - "$(SRCROOT)/SampIOS/Core"
+          - "$(SRCROOT)/SampIOS/Core/compat"
+          - "$(SRCROOT)/SampIOS/vendor/raknet"
+          - "$(SRCROOT)/SampIOS/vendor/raknet/SAMP"
+        OTHER_CPLUSPLUSFLAGS: "-w"
+        CODE_SIGNING_ALLOWED: "NO"
+        CODE_SIGNING_REQUIRED: "NO"
+        CODE_SIGN_IDENTITY: ""
+        DEVELOPMENT_TEAM: ""

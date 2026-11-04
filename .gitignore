@@ -1,0 +1,16 @@
+# build output
+tools/build/
+build/
+DerivedData/
+*.ipa
+Payload/
+
+# xcodegen output
+SampIOS.xcodeproj/
+SampIOS/Info.plist
+*.xcworkspace
+
+# local logs / scratch
+gh_login.txt
+run_cli.txt
+*.log

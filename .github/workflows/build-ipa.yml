@@ -1,0 +1,49 @@
+name: build-ipa
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  ipa:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build (unsigned)
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project SampIOS.xcodeproj \
+            -scheme SampIOS \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Package IPA
+        run: |
+          set -e
+          APP="build/Build/Products/Release-iphoneos/SampIOS.app"
+          test -d "$APP"
+          rm -rf Payload SampIOS.ipa
+          mkdir Payload
+          cp -R "$APP" Payload/
+          zip -qr SampIOS.ipa Payload
+          ls -lh SampIOS.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SampIOS-ipa
+          path: SampIOS.ipa
+          if-no-files-found: error
