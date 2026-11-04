@@ -46,6 +46,19 @@ int32_t samp_poll_chat(char* name, int32_t nameCap, char* text, int32_t textCap,
 // Pops one queued diagnostic line. Returns 0 when the queue is empty.
 int32_t samp_poll_log(char* out, int32_t cap);
 
+typedef struct SampDialog {
+    int32_t active;
+    int32_t id;
+    int32_t style;
+    char title[256];
+    char message[1024];
+    char button1[64];
+    char button2[64];
+} SampDialog;
+
+int32_t samp_dialog(SampDialog* out);
+void samp_dialog_response(int32_t button, const char* input, int32_t listItem);
+
 #ifdef __cplusplus
 }
 #endif

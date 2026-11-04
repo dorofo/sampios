@@ -2,6 +2,15 @@ import Foundation
 import SceneKit
 import SwiftUI
 
+struct DialogState: Identifiable {
+    let id: Int32
+    let style: Int32
+    let title: String
+    let message: String
+    let button1: String
+    let button2: String
+}
+
 struct ChatLine: Identifiable {
     let id = UUID()
     let name: String
@@ -20,6 +29,8 @@ final class GameEngine: ObservableObject {
     @Published var coords = ""
     @Published var chat: [ChatLine] = []
     @Published var sprint = false
+    @Published var dialog: DialogState?
+    @Published var logs: [String] = []
 
     private var timer: Timer?
     private var playerNode: SCNNode!
@@ -266,8 +277,38 @@ final class GameEngine: ObservableObject {
         }
 
         var log = [CChar](repeating: 0, count: 256)
+        var newLogs: [String] = []
         while samp_poll_log(&log, Int32(log.count)) != 0 {
-            print("[samp] \(String(cString: log))")
+            newLogs.append(String(cString: log))
+        }
+        if !newLogs.isEmpty {
+            logs.append(contentsOf: newLogs)
+            if logs.count > 60 { logs.removeFirst(logs.count - 60) }
+            newLogs.forEach { print("[samp] \($0)") }
+        }
+
+        var box = SampDialog()
+        if samp_dialog(&box) != 0 {
+            dialog = DialogState(id: box.id,
+                                 style: box.style,
+                                 title: Self.cstr(&box.title),
+                                 message: Self.cstr(&box.message),
+                                 button1: Self.cstr(&box.button1),
+                                 button2: Self.cstr(&box.button2))
+        } else {
+            dialog = nil
+        }
+    }
+
+    func respond(button: Int32, input: String) {
+        samp_dialog_response(button, input, -1)
+        dialog = nil
+    }
+
+    /// Reads a fixed-size C char array (imported as a Swift tuple) as UTF-8.
+    static func cstr<T>(_ value: inout T) -> String {
+        withUnsafeBytes(of: &value) { raw in
+            String(decoding: raw.prefix { $0 != 0 }, as: UTF8.self)
         }
     }
 

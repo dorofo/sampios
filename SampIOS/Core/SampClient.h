@@ -64,6 +64,11 @@ public:
     bool PopChat(ChatMessage& out);
     bool PopLog(std::string& out);
 
+    // Script dialog currently shown by the server (login, registration, ...).
+    bool HasDialog() const { return m_dialog.active; }
+    const DialogInfo& Dialog() const { return m_dialog; }
+    void RespondDialog(int button, const std::string& input, int listItem = -1);
+
     // Exposed for the RPC thunks in SampClient.cpp.
     void OnPacket(Packet* packet);
     void OnRpc(int rpcId, const unsigned char* data, int bitLength);
@@ -125,6 +130,8 @@ private:
     // Auth answers are queued here and flushed from Tick() so that no send ever
     // happens inside a packet callback.
     std::string m_pendingAuthReply;
+    DialogInfo m_dialog;
+    int m_rxLogBudget = 80;
 
     RemotePlayer m_players[kMaxPlayers];
     std::deque<ChatMessage> m_chat;

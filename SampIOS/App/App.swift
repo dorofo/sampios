@@ -31,8 +31,8 @@ struct RootView: View {
 struct LoginView: View {
     @ObservedObject var engine: GameEngine
 
-    @State private var host = "192.168.1.1"
-    @State private var port = "7777"
+    @State private var host = "195.18.27.241"
+    @State private var port = "2646"
     @State private var nick = "iplayer"
 
     var body: some View {
@@ -100,6 +100,8 @@ struct GameView: View {
     @State private var showChat = false
     @State private var joystick = CGPoint.zero
     @State private var lookStart: CGFloat?
+    @State private var dialogInput = ""
+    @State private var showLog = false
 
     var body: some View {
         ZStack {
@@ -139,6 +141,15 @@ struct GameView: View {
 
                     Spacer()
 
+                    Button { showLog.toggle() } label: {
+                        Text("LOG")
+                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(showLog ? Color.white.opacity(0.35) : Color.black.opacity(0.35))
+                            .clipShape(Capsule())
+                            .foregroundStyle(.white)
+                    }
                     Button { engine.disconnect() } label: {
                         Text("Выйти")
                             .font(.system(size: 12, weight: .bold, design: .rounded))
@@ -149,11 +160,34 @@ struct GameView: View {
                             .foregroundStyle(.white)
                     }
                 }
+                if showLog {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 1) {
+                            ForEach(Array(engine.logs.suffix(14).enumerated()), id: \.offset) { _, line in
+                                Text(line)
+                                    .font(.system(size: 9, design: .monospaced))
+                                    .foregroundStyle(.white.opacity(0.85))
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .frame(maxHeight: 150)
+                    .padding(8)
+                    .background(Color.black.opacity(0.55))
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
                 Spacer()
                 chatPanel
                 controls
             }
             .padding(14)
+
+            if let dialog = engine.dialog {
+                DialogOverlay(dialog: dialog, input: $dialogInput) { button in
+                    engine.respond(button: button, input: dialogInput)
+                    dialogInput = ""
+                }
+            }
         }
     }
 
@@ -225,6 +259,71 @@ struct GameView: View {
                         .foregroundStyle(.white)
                 }
             }
+        }
+    }
+}
+
+struct DialogOverlay: View {
+    let dialog: DialogState
+    @Binding var input: String
+    var onButton: (Int32) -> Void
+
+    private var needsInput: Bool { dialog.style == 1 || dialog.style == 3 }
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.55).ignoresSafeArea()
+            VStack(alignment: .leading, spacing: 12) {
+                Text(dialog.title.isEmpty ? "Сервер" : dialog.title)
+                    .font(.system(size: 18, weight: .heavy, design: .rounded))
+                    .foregroundStyle(.white)
+                ScrollView {
+                    Text(dialog.message)
+                        .font(.system(size: 13, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.9))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: 180)
+
+                if needsInput {
+                    TextField("", text: $input)
+                        .textFieldStyle(.plain)
+                        .autocapitalization(.none)
+                        .disableAutocorrection(true)
+                        .padding(10)
+                        .background(Color.white.opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .foregroundStyle(.white)
+                }
+
+                HStack(spacing: 10) {
+                    Button { onButton(0) } label: {
+                        Text(dialog.button1.isEmpty ? "OK" : dialog.button1)
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(Color(red: 0.16, green: 0.62, blue: 0.92))
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .foregroundStyle(.white)
+                    }
+                    if !dialog.button2.isEmpty {
+                        Button { onButton(1) } label: {
+                            Text(dialog.button2)
+                                .font(.system(size: 14, weight: .bold, design: .rounded))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                                .background(Color.white.opacity(0.18))
+                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                .foregroundStyle(.white)
+                        }
+                    }
+                }
+            }
+            .padding(20)
+            .frame(maxWidth: 460)
+            .background(Color(red: 0.10, green: 0.13, blue: 0.17))
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .padding(24)
         }
     }
 }

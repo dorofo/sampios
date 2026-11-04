@@ -6,6 +6,7 @@
 #include "NetworkTypes.h"
 #include "PacketEnumerations.h"
 #include "RakClient.h"
+#include "StringCompressor.h"
 
 #include <chrono>
 #include <cmath>
@@ -86,6 +87,9 @@ void RpcSetPlayerPos(RPCParameters* p) {
 void RpcGameModeRestart(RPCParameters* p) {
     Client::Get().OnRpc(RPC_GameModeRestart, p->input, p->numberOfBitsOfData);
 }
+void RpcDialogBox(RPCParameters* p) {
+    Client::Get().OnRpc(RPC_DialogBox, p->input, p->numberOfBitsOfData);
+}
 
 }  // namespace
 
@@ -140,6 +144,7 @@ void Client::RegisterRpcs() {
     rc->RegisterAsRemoteProcedureCall(&RPC_ConnectionRejected, RpcConnectionRejected);
     rc->RegisterAsRemoteProcedureCall(&RPC_ScrSetPlayerPos, RpcSetPlayerPos);
     rc->RegisterAsRemoteProcedureCall(&RPC_GameModeRestart, RpcGameModeRestart);
+    rc->RegisterAsRemoteProcedureCall(&RPC_DialogBox, RpcDialogBox);
 }
 
 void Client::ResetSession() {
@@ -392,6 +397,16 @@ void Client::OnPacket(Packet* packet) {
         data += 1 + sizeof(RakNetTime);
         length -= 1 + static_cast<int>(sizeof(RakNetTime));
         id = data[0];
+    }
+
+    // Keep a short packet trail in the log so a device session can be diagnosed
+    // from the in-app console.
+    if (m_rxLogBudget > 0) {
+        --m_rxLogBudget;
+        char line[64];
+        std::snprintf(line, sizeof(line), "rx id=%u len=%d connected=%d",
+                      static_cast<unsigned>(id), length, m_net.Connected() ? 1 : 0);
+        Log(line);
     }
 
 #if SAMP_DEBUG_PACKETS
@@ -707,6 +722,28 @@ void Client::OnRpc(int rpcId, const unsigned char* data, int bitLength) {
             m_net.Stop();
             break;
         }
+        case 61: {  // RPC_DialogBox
+            DialogInfo dialog;
+            uint8_t len = 0;
+            bs.Read(dialog.id);
+            bs.Read(dialog.style);
+
+            bs.Read(len);
+            if (len > 0 && len < sizeof(dialog.title)) bs.Read(dialog.title, len);
+            bs.Read(len);
+            if (len > 0 && len < sizeof(dialog.button1)) bs.Read(dialog.button1, len);
+            bs.Read(len);
+            if (len > 0 && len < sizeof(dialog.button2)) bs.Read(dialog.button2, len);
+
+            char message[1024] = {};
+            StringCompressor::Instance()->DecodeString(message, sizeof(message) - 1, &bs);
+            std::strncpy(dialog.message, message, sizeof(dialog.message) - 1);
+
+            dialog.active = true;
+            m_dialog = dialog;
+            Log("dialog " + std::to_string(dialog.id) + " style " + std::to_string(dialog.style));
+            break;
+        }
         case 40: {  // RPC_GameModeRestart
             Log("gamemode restart, reconnecting");
             AddChat(kChatInfo, "", "Сервер перезапускается, подключаемся заново", 0xFFFFC000);
@@ -721,6 +758,24 @@ void Client::OnRpc(int rpcId, const unsigned char* data, int bitLength) {
         default:
             break;
     }
+}
+
+// ------------------------------------------------------------------- dialogs
+void Client::RespondDialog(int button, const std::string& input, int listItem) {
+    if (!m_dialog.active) return;
+
+    RakNet::BitStream bs;
+    bs.Write(m_dialog.id);
+    bs.Write(static_cast<uint8_t>(button));
+    bs.Write(static_cast<int16_t>(listItem));
+    const uint8_t len = static_cast<uint8_t>(input.size() > 250 ? 250 : input.size());
+    bs.Write(len);
+    bs.Write(input.c_str(), len);
+    m_net.Rpc(&RPC_DialogResponse, bs, HIGH_PRIORITY, RELIABLE_ORDERED, 0);
+
+    Log("dialog " + std::to_string(m_dialog.id) + " answered with button " +
+        std::to_string(button));
+    m_dialog.active = false;
 }
 
 // ----------------------------------------------------------------- handshake

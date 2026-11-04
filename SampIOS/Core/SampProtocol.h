@@ -52,6 +52,19 @@ extern int RPC_InitGame;                // 139
 extern int RPC_WorldPlayerRemove;       // 163
 extern int RPC_ScrSetPlayerPos;         // 12
 extern int RPC_GameModeRestart;         // 40
+extern int RPC_DialogBox;               // 61
+extern int RPC_DialogResponse;          // 62
+
+// A script dialog (RPC 61). Server game modes use these for login/registration.
+struct DialogInfo {
+    bool active = false;
+    uint16_t id = 0;
+    uint8_t style = 0;   // 0 msgbox, 1 input, 2 list, 3 password, 4/5 tablist
+    char title[256] = {};
+    char message[1024] = {};
+    char button1[64] = {};
+    char button2[64] = {};
+};
 
 // ------------------------------------------------------------- packet layouts
 #pragma pack(push, 1)

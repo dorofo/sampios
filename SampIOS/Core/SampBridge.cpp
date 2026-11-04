@@ -94,6 +94,28 @@ int32_t samp_poll_chat(char* name, int32_t nameCap, char* text, int32_t textCap,
     return 1;
 }
 
+int32_t samp_dialog(SampDialog* out) {
+    if (!out) return 0;
+    const Client& client = Client::Get();
+    const samp::DialogInfo& dialog = client.Dialog();
+    out->active = dialog.active ? 1 : 0;
+    out->id = dialog.id;
+    out->style = dialog.style;
+    std::memcpy(out->title, dialog.title, sizeof(out->title));
+    out->title[sizeof(out->title) - 1] = '\0';
+    std::memcpy(out->message, dialog.message, sizeof(out->message));
+    out->message[sizeof(out->message) - 1] = '\0';
+    std::memcpy(out->button1, dialog.button1, sizeof(out->button1));
+    out->button1[sizeof(out->button1) - 1] = '\0';
+    std::memcpy(out->button2, dialog.button2, sizeof(out->button2));
+    out->button2[sizeof(out->button2) - 1] = '\0';
+    return out->active;
+}
+
+void samp_dialog_response(int32_t button, const char* input, int32_t listItem) {
+    Client::Get().RespondDialog(button, input ? input : "", listItem);
+}
+
 int32_t samp_poll_log(char* out, int32_t cap) {
     std::string line;
     if (!Client::Get().PopLog(line)) return 0;

@@ -48,6 +48,18 @@ set(RAKNET_SOURCES
 
 add_executable(sampcli ${SAMP_SOURCES} ${RAKNET_SOURCES})
 
+add_executable(sampprobe ${CMAKE_CURRENT_SOURCE_DIR}/probe.cpp ${RAKNET_SOURCES})
+target_include_directories(sampprobe PRIVATE
+        ${CORE_DIR}
+        ${CORE_DIR}/compat
+        ${RAKNET_DIR}
+        ${RAKNET_DIR}/SAMP
+)
+target_compile_options(sampprobe PRIVATE -w)
+if (WIN32)
+    target_link_libraries(sampprobe PRIVATE ws2_32 winmm)
+endif ()
+
 target_include_directories(sampcli PRIVATE
         ${CORE_DIR}
         ${CORE_DIR}/compat

@@ -16,5 +16,7 @@ int RPC_ServerJoin = 137;
 int RPC_ServerQuit = 138;
 int RPC_InitGame = 139;
 int RPC_WorldPlayerRemove = 163;
+int RPC_DialogBox = 61;
+int RPC_DialogResponse = 62;
 
 }  // namespace samp
