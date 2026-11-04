@@ -577,10 +577,12 @@ void Client::OnPacket(Packet* packet) {
             bs.Read(challenge, len);
             challenge[len] = '\0';
 
+            // Answered only once, right before ClientJoin: the copy sent during
+            // the handshake is queued on a link that is not up yet, and a second
+            // answer for the same challenge makes the server drop the client.
             m_authChallenge.assign(challenge);
             char key[269] = {};
             gen_auth_key(key, challenge);
-            m_pendingAuthReply.assign(key);
             Log(std::string("auth key computed, challenge=") + challenge + " key=" + key);
             break;
         }
@@ -887,6 +889,14 @@ void Client::OnRpc(int rpcId, const unsigned char* data, int bitLength) {
             bs.Read(len);
             if (len > 0 && len < sizeof(reason)) bs.Read(reason, len);
             reason[len] = '\0';
+            // The reason string decides what the server disliked, so keep the
+            // raw bytes too in case the layout differs.
+            char raw[3 * 32 + 1] = {};
+            const int shown = bitLength / 8 < 32 ? bitLength / 8 : 32;
+            for (int i = 0; i < shown; ++i) {
+                std::snprintf(raw + i * 3, 4, "%02X ", data[i]);
+            }
+            Log(std::string("connection rejected: '") + reason + "' raw=" + raw);
             SetState(kStateError, reason[0] ? reason : "connection rejected");
             m_needStop = true;
             break;
