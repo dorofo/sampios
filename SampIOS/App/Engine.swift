@@ -31,6 +31,7 @@ final class GameEngine: ObservableObject {
     @Published var sprint = false
     @Published var dialog: DialogState?
     @Published var logs: [String] = []
+    @Published var logURL = ""
 
     private var timer: Timer?
     private var playerNode: SCNNode!
@@ -156,6 +157,14 @@ final class GameEngine: ObservableObject {
         }
         loggedIn = true
         chat.removeAll()
+
+        let port = samp_log_port()
+        if port > 0, let ip = Self.localIPv4() {
+            logURL = "http://\(ip):\(port)/log"
+        } else {
+            logURL = "лог-сервер недоступен"
+        }
+
         startLoop()
     }
 
@@ -303,6 +312,26 @@ final class GameEngine: ObservableObject {
     func respond(button: Int32, input: String) {
         samp_dialog_response(button, input, -1)
         dialog = nil
+    }
+
+    /// IPv4 address of the Wi-Fi interface (en0), used for the log URL.
+    static func localIPv4() -> String? {
+        var result: String?
+        var ifaddr: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&ifaddr) == 0, let first = ifaddr else { return nil }
+        defer { freeifaddrs(ifaddr) }
+
+        for pointer in sequence(first: first, next: { $0.pointee.ifa_next }) {
+            let interface = pointer.pointee
+            guard let addr = interface.ifa_addr, addr.pointee.sa_family == UInt8(AF_INET) else { continue }
+            guard String(cString: interface.ifa_name) == "en0" else { continue }
+            var host = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+            if getnameinfo(addr, socklen_t(addr.pointee.sa_len), &host,
+                           socklen_t(host.count), nil, 0, NI_NUMERICHOST) == 0 {
+                result = String(cString: host)
+            }
+        }
+        return result
     }
 
     /// Reads a fixed-size C char array (imported as a Swift tuple) as UTF-8.

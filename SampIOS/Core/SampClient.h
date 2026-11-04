@@ -5,6 +5,7 @@
 // RPC callbacks from inside Transport::Pump, i.e. also on that thread.
 #pragma once
 
+#include "LogServer.h"
 #include "RakTransport.h"
 #include "SampProtocol.h"
 
@@ -63,6 +64,10 @@ public:
     // Returns false when the queue is empty.
     bool PopChat(ChatMessage& out);
     bool PopLog(std::string& out);
+
+    // Full diagnostic log, served over HTTP by the embedded LogServer.
+    std::string DumpLogText() const;
+    unsigned short LogPort();
 
     // Script dialog currently shown by the server (login, registration, ...).
     bool HasDialog() const { return m_dialog.active; }
@@ -136,6 +141,7 @@ private:
     RemotePlayer m_players[kMaxPlayers];
     std::deque<ChatMessage> m_chat;
     std::deque<std::string> m_logs;
+    LogServer m_logServer;
 };
 
 }  // namespace samp

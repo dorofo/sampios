@@ -10,6 +10,7 @@ set(RAKNET_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../SampIOS/vendor/raknet)
 set(SAMP_SOURCES
         ${CORE_DIR}/SampProtocol.cpp
         ${CORE_DIR}/RakTransport.cpp
+        ${CORE_DIR}/LogServer.cpp
         ${CORE_DIR}/PlayerSync.cpp
         ${CORE_DIR}/SampClient.cpp
         ${CORE_DIR}/SampBridge.cpp

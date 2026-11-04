@@ -30,7 +30,7 @@ public:
 
     RakClient* Client() { return m_client; }
 
-    void Send(const RakNet::BitStream& stream, PacketPriority priority,
+    bool Send(const RakNet::BitStream& stream, PacketPriority priority,
               PacketReliability reliability, char channel);
     void Rpc(int* rpcId, RakNet::BitStream& stream, PacketPriority priority,
              PacketReliability reliability, char channel = 0);

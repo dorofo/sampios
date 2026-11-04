@@ -109,6 +109,10 @@ bool Client::Connect(const std::string& host, unsigned short port, const std::st
     if (m_nick.empty()) m_nick = "iosplayer";
 
     m_connectAttempts = 0;
+    m_rxLogBudget = 80;
+    const unsigned short logPort = LogPort();
+    Log(logPort ? "log: http://<iphone-ip>:" + std::to_string(logPort) + "/log"
+                : "log server did not start");
     if (!m_net.Start(m_host.c_str(), m_port)) {
         SetState(kStateError, "cannot start socket");
         return false;
@@ -177,7 +181,23 @@ void Client::SetState(int state, const char* reason) {
 
 void Client::Log(const std::string& line) {
     m_logs.push_back(line);
-    while (m_logs.size() > 200) m_logs.pop_front();
+    while (m_logs.size() > 400) m_logs.pop_front();
+}
+
+std::string Client::DumpLogText() const {
+    std::string out;
+    for (const auto& line : m_logs) {
+        out += line;
+        out += '\n';
+    }
+    return out;
+}
+
+unsigned short Client::LogPort() {
+    if (!m_logServer.Running()) {
+        m_logServer.Start(8088, [this] { return DumpLogText(); });
+    }
+    return m_logServer.Running() ? m_logServer.Port() : 0;
 }
 
 void Client::AddChat(int kind, const std::string& name, const std::string& text, uint32_t colour) {
@@ -263,9 +283,9 @@ void Client::Tick() {
         out.Write(static_cast<uint8_t>(ID_AUTH_KEY));
         out.Write(keyLen);
         out.Write(m_pendingAuthReply.c_str(), keyLen);
-        m_net.Send(out, SYSTEM_PRIORITY, RELIABLE, 0);
+        const bool sent = m_net.Send(out, SYSTEM_PRIORITY, RELIABLE, 0);
         m_pendingAuthReply.clear();
-        Log("auth key answered");
+        Log(sent ? "auth key sent" : "auth key NOT sent (connection not ready)");
     }
 
     if (m_state == kStateConnecting && m_connectAttempts < 8 &&

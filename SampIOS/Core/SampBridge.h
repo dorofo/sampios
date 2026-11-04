@@ -56,6 +56,9 @@ typedef struct SampDialog {
     char button2[64];
 } SampDialog;
 
+// Port of the embedded HTTP log endpoint (0 when unavailable).
+int32_t samp_log_port(void);
+
 int32_t samp_dialog(SampDialog* out);
 void samp_dialog_response(int32_t button, const char* input, int32_t listItem);
 

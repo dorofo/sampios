@@ -161,6 +161,11 @@ struct GameView: View {
                     }
                 }
                 if showLog {
+                    Text(engine.logURL)
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .foregroundStyle(Color(red: 0.6, green: 0.9, blue: 1))
+                        .textSelection(.enabled)
+                        .padding(.bottom, 2)
                     ScrollView {
                         VStack(alignment: .leading, spacing: 1) {
                             ForEach(Array(engine.logs.suffix(14).enumerated()), id: \.offset) { _, line in

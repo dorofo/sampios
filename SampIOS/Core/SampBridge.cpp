@@ -94,6 +94,10 @@ int32_t samp_poll_chat(char* name, int32_t nameCap, char* text, int32_t textCap,
     return 1;
 }
 
+int32_t samp_log_port(void) {
+    return static_cast<int32_t>(Client::Get().LogPort());
+}
+
 int32_t samp_dialog(SampDialog* out) {
     if (!out) return 0;
     const Client& client = Client::Get();
