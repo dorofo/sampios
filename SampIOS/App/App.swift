@@ -90,12 +90,10 @@ struct LoginView: View {
                     .background(Color.black.opacity(0.35))
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
-            }
+                }
                 .padding(24)
                 .frame(maxWidth: 520)
                 .frame(maxWidth: .infinity)
-                }
-                .scrollDismissesKeyboard(.interactively)
             }
         }
     }

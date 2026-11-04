@@ -104,7 +104,8 @@ namespace {
 // them. The value typed on the login screen always comes first.
 // Client build names SA-MP servers are known to accept, in the order we try
 // them. The value typed on the login screen always comes first.
-const char* const kVersionCandidates[] = {"0.3.7", "0.3.7-R5", "0.3.7-R4", "0.3.7-R3"};
+const char* const kVersionCandidates[] = {"0.3.7",   "0.3.7-R5", "0.3.7-R4",
+                                          "0.3.7-R3", "0.3.7-R2", "0.3.7-R1"};
 constexpr int kVersionCandidateCount =
     static_cast<int>(sizeof(kVersionCandidates) / sizeof(kVersionCandidates[0]));
 
