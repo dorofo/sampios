@@ -115,15 +115,15 @@ struct JoinVariant {
     uint32_t version;
     uint8_t mod;
     bool voice;
+    bool rawToken;  // send the AUTH_BS token itself instead of its hash
     const char* label;
 };
 const JoinVariant kJoinVariants[] = {
-    {4057, 1, false, "ver=4057 mod=1"},
-    {4057, 1, true, "ver=4057 mod=1 voice"},
-    {4057, 0, false, "ver=4057 mod=0"},
-    {4056, 1, false, "ver=4056 mod=1"},
-    {4056, 1, true, "ver=4056 mod=1 voice"},
-    {4058, 1, false, "ver=4058 mod=1"},
+    {4057, 1, false, false, "ver=4057 mod=1 key"},
+    {4057, 1, false, true, "ver=4057 mod=1 token"},
+    {4057, 1, true, false, "ver=4057 mod=1 voice key"},
+    {4057, 1, true, true, "ver=4057 mod=1 voice token"},
+    {4057, 0, false, false, "ver=4057 mod=0 key"},
 };
 constexpr int kJoinVariantCount = static_cast<int>(sizeof(kJoinVariants) / sizeof(kJoinVariants[0]));
 }  // namespace
@@ -375,17 +375,8 @@ void Client::Tick() {
     // queued on a link that is not established yet and never leaves.
     if (m_pendingJoin && m_net.Connected()) {
         m_pendingJoin = false;
-        if (!m_authChallenge.empty()) {
-            char key[269] = {};
-            gen_auth_key(key, const_cast<char*>(m_authChallenge.c_str()));
-            const uint8_t keyLen = static_cast<uint8_t>(std::strlen(key));
-            RakNet::BitStream resend;
-            resend.Write(static_cast<uint8_t>(ID_AUTH_KEY));
-            resend.Write(keyLen);
-            resend.Write(key, keyLen);
-            m_net.Send(resend, SYSTEM_PRIORITY, RELIABLE, 0);
-            Log("auth key re-sent after connect");
-        }
+        // The auth answer went out during the handshake; sending it twice makes
+        // the server drop the client.
         SendClientJoin(m_joinChallenge);
     }
 
@@ -577,12 +568,12 @@ void Client::OnPacket(Packet* packet) {
             bs.Read(challenge, len);
             challenge[len] = '\0';
 
-            // Answered only once, right before ClientJoin: the copy sent during
-            // the handshake is queued on a link that is not up yet, and a second
-            // answer for the same challenge makes the server drop the client.
+            // The server will not send ID_CONNECTION_REQUEST_ACCEPTED until it
+            // has this answer, so it has to go out during the handshake.
             m_authChallenge.assign(challenge);
             char key[269] = {};
             gen_auth_key(key, challenge);
+            m_pendingAuthReply.assign(key);
             Log(std::string("auth key computed, challenge=") + challenge + " key=" + key);
             break;
         }
@@ -983,8 +974,15 @@ void Client::SendClientJoin(uint32_t rawChallenge) {
     bs.Write(nameLen);
     bs.Write(m_nick.c_str(), nameLen);
     bs.Write(challenge);
-    bs.Write(authLen);
-    bs.Write(authKey, authLen);
+    if (variant.rawToken) {
+        // Some builds expect the token itself, not the derived key.
+        const uint8_t tokenLen = static_cast<uint8_t>(std::strlen(token));
+        bs.Write(tokenLen);
+        bs.Write(token, tokenLen);
+    } else {
+        bs.Write(authLen);
+        bs.Write(authKey, authLen);
+    }
     bs.Write(modLen);
     bs.Write(version.c_str(), modLen);
 
