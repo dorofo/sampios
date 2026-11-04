@@ -119,8 +119,8 @@ struct JoinVariant {
     const char* label;
 };
 const JoinVariant kJoinVariants[] = {
-    {4057, 1, false, false, "ver=4057 mod=1 key"},
     {4057, 1, false, true, "ver=4057 mod=1 token"},
+    {4057, 1, false, false, "ver=4057 mod=1 key"},
     {4057, 1, true, false, "ver=4057 mod=1 voice key"},
     {4057, 1, true, true, "ver=4057 mod=1 voice token"},
     {4057, 0, false, false, "ver=4057 mod=0 key"},
@@ -688,6 +688,17 @@ void Client::OnPacket(Packet* packet) {
 void Client::OnRpc(int rpcId, const unsigned char* data, int bitLength) {
     if (!data || bitLength <= 0) return;
     RakNet::BitStream bs(const_cast<unsigned char*>(data), ByteLen(bitLength), false);
+
+    // Trace incoming RPCs: after the join the server announces a kick, a dialog
+    // or a vehicle switch here, and that is what the log needs to show.
+    if (m_rpcLogBudget > 0) {
+        --m_rpcLogBudget;
+        char hex[3 * 16 + 1] = {};
+        const int shown = bitLength / 8 < 16 ? bitLength / 8 : 16;
+        for (int i = 0; i < shown; ++i) std::snprintf(hex + i * 3, 4, "%02X ", data[i]);
+        Log("rpc " + std::to_string(rpcId) + " bits=" + std::to_string(bitLength) + " [" + hex +
+            "]");
+    }
 
     switch (rpcId) {
         case 139: {  // RPC_InitGame

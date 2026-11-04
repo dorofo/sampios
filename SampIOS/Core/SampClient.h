@@ -157,6 +157,7 @@ private:
     uint32_t m_joinChallenge = 0;
     DialogInfo m_dialog;
     int m_rxLogBudget = 80;
+    int m_rpcLogBudget = 60;
 
     RemotePlayer m_players[kMaxPlayers];
     std::deque<ChatMessage> m_chat;
