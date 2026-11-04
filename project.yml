@@ -3,6 +3,7 @@ name: SampIOS
 options:
   bundleIdPrefix: com.dorofo
   createIntermediateGroups: true
+  xcodeVersion: "15.0"
   deploymentTarget:
     iOS: "15.0"
 
