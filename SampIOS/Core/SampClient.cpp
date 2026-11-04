@@ -119,10 +119,10 @@ struct JoinVariant {
     const char* label;
 };
 const JoinVariant kJoinVariants[] = {
-    {4057, 1, false, true, "ver=4057 mod=1 token"},
-    {4057, 1, false, false, "ver=4057 mod=1 key"},
-    {4057, 1, true, false, "ver=4057 mod=1 voice key"},
     {4057, 1, true, true, "ver=4057 mod=1 voice token"},
+    {4057, 1, false, true, "ver=4057 mod=1 token"},
+    {4057, 1, true, false, "ver=4057 mod=1 voice key"},
+    {4057, 1, false, false, "ver=4057 mod=1 key"},
     {4057, 0, false, false, "ver=4057 mod=0 key"},
 };
 constexpr int kJoinVariantCount = static_cast<int>(sizeof(kJoinVariants) / sizeof(kJoinVariants[0]));
@@ -599,7 +599,11 @@ void Client::OnPacket(Packet* packet) {
         }
         case ID_DISCONNECTION_NOTIFICATION:
         case ID_CONNECTION_LOST: {
-            const bool rejectedJoin = (m_state == kStateJoining || m_state == kStateSpawning);
+            // A drop in game right after the spawn counts as a rejection too: the
+            // server accepted the join and then kicked, which is what a client
+            // missing the voice handshake looks like.
+            const bool rejectedJoin = (m_state == kStateJoining || m_state == kStateSpawning ||
+                                       m_state == kStateInGame);
             if (rejectedJoin) {
                 // Walk the ClientJoin shape first (version / mod / voice tail),
                 // then the auth token, then the build string. The reconnect
