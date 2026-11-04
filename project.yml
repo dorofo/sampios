@@ -71,6 +71,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.dorofo.sampios
         INFOPLIST_FILE: SampIOS/Info.plist
+        SWIFT_OBJC_BRIDGING_HEADER: SampIOS/Core/SampBridge.h
         TARGETED_DEVICE_FAMILY: "1"
         HEADER_SEARCH_PATHS:
           - "$(SRCROOT)/SampIOS/Core"
