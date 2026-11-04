@@ -143,6 +143,7 @@ private:
     double m_spawnRequestAtMs = 0.0;
     double m_spawnAtMs = 0.0;
     int m_authVariant = 0;
+    int m_joinVariant = 0;
     int m_connectAttempts = 0;
     bool m_waitingSpawnReply = false;
 

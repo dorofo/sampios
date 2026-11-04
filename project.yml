@@ -36,6 +36,7 @@ targets:
         UIViewControllerBasedStatusBarAppearance: false
         NSLocalNetworkUsageDescription: "Доступ к локальной сети нужен, чтобы подключаться к игровому серверу по Wi-Fi."
         UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
     sources:

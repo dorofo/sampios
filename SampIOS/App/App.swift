@@ -43,7 +43,8 @@ struct LoginView: View {
                            startPoint: .topLeading, endPoint: .bottomTrailing)
                 .ignoresSafeArea()
 
-            VStack(alignment: .leading, spacing: 18) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
                 Text("SAMP iOS")
                     .font(.system(size: 34, weight: .heavy, design: .rounded))
                     .foregroundStyle(.white)
@@ -90,8 +91,12 @@ struct LoginView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
             }
-            .padding(28)
-            .frame(maxWidth: 420)
+                .padding(24)
+                .frame(maxWidth: 520)
+                .frame(maxWidth: .infinity)
+                }
+                .scrollDismissesKeyboard(.interactively)
+            }
         }
     }
 

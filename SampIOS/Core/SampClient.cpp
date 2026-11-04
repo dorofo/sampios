@@ -102,9 +102,29 @@ Client& Client::Get() {
 namespace {
 // Client build names SA-MP servers are known to accept, in the order we try
 // them. The value typed on the login screen always comes first.
+// Client build names SA-MP servers are known to accept, in the order we try
+// them. The value typed on the login screen always comes first.
 const char* const kVersionCandidates[] = {"0.3.7", "0.3.7-R5", "0.3.7-R4", "0.3.7-R3"};
 constexpr int kVersionCandidateCount =
     static_cast<int>(sizeof(kVersionCandidates) / sizeof(kVersionCandidates[0]));
+
+// ClientJoin shapes the servers may insist on. The first entry is the documented
+// SA-MP 0.3.7 layout; the voice tail and mod byte are what the launcher sends.
+struct JoinVariant {
+    uint32_t version;
+    uint8_t mod;
+    bool voice;
+    const char* label;
+};
+const JoinVariant kJoinVariants[] = {
+    {4057, 1, false, "ver=4057 mod=1"},
+    {4057, 1, true, "ver=4057 mod=1 voice"},
+    {4057, 0, false, "ver=4057 mod=0"},
+    {4056, 1, false, "ver=4056 mod=1"},
+    {4056, 1, true, "ver=4056 mod=1 voice"},
+    {4058, 1, false, "ver=4058 mod=1"},
+};
+constexpr int kJoinVariantCount = static_cast<int>(sizeof(kJoinVariants) / sizeof(kJoinVariants[0]));
 }  // namespace
 
 void Client::SetClientVersion(const std::string& version) {
@@ -572,11 +592,12 @@ void Client::OnPacket(Packet* packet) {
             bs.IgnoreBits(16);
             if (!bs.Read(playerId)) return;
             if (!bs.Read(challenge)) return;
-            challenge ^= static_cast<uint32_t>(kClientVersion);
             m_localId = playerId;
             SetState(kStateJoining);
+            // Keep the challenge untouched: every join variant xors it with its
+            // own version number.
             Log("handshake ok, local id " + std::to_string(playerId) + " srvChallenge=" +
-                std::to_string(challenge ^ static_cast<uint32_t>(kClientVersion)));
+                std::to_string(challenge));
             m_pendingJoin = true;
             m_joinChallenge = challenge;
             m_joinAtMs = NowMs();
@@ -586,17 +607,24 @@ void Client::OnPacket(Packet* packet) {
         case ID_CONNECTION_LOST: {
             const bool rejectedJoin = (m_state == kStateJoining || m_state == kStateSpawning);
             if (rejectedJoin) {
-                // Rotate auth token first, then the client build string. The
-                // reconnect itself happens in Tick(), never from here, because
-                // this runs inside Pump().
-                ++m_authVariant;
+                // Walk the ClientJoin shape first (version / mod / voice tail),
+                // then the auth token, then the build string. The reconnect
+                // itself happens in Tick(), never from here: this runs inside
+                // Pump() where destroying the client would free the queue.
+                ++m_joinVariant;
+                if (m_joinVariant >= kJoinVariantCount) {
+                    m_joinVariant = 0;
+                    ++m_authVariant;
+                }
                 if (m_authVariant > 1) {
                     m_authVariant = 0;
                     ++m_versionIndex;
                 }
                 if (m_versionIndex < kVersionCandidateCount) {
-                    Log("join rejected, next attempt: AUTH_BS variant " +
-                        std::to_string(m_authVariant + 1) + ", client=" + ClientVersion());
+                    Log("join rejected, next attempt: " +
+                        std::string(kJoinVariants[m_joinVariant % kJoinVariantCount].label) +
+                        " AUTH_BS variant " + std::to_string(m_authVariant + 1) +
+                        ", client=" + ClientVersion());
                     m_needStop = true;
                     m_needReconnect = true;
                     break;
@@ -917,7 +945,7 @@ void Client::RespondDialog(int button, const std::string& input, int listItem) {
 }
 
 // ----------------------------------------------------------------- handshake
-void Client::SendClientJoin(uint32_t challenge) {
+void Client::SendClientJoin(uint32_t rawChallenge) {
     // Two AUTH_BS tokens ship with the Android sources; the server build we talk
     // to may expect either one, so try them in turn when the join is rejected.
     static const char* kAuthVariants[] = {
@@ -935,9 +963,12 @@ void Client::SendClientJoin(uint32_t challenge) {
     const std::string version = ClientVersion();
     const uint8_t modLen = static_cast<uint8_t>(version.size());
 
+    const JoinVariant& variant = kJoinVariants[m_joinVariant % kJoinVariantCount];
+    const uint32_t challenge = rawChallenge ^ variant.version;
+
     RakNet::BitStream bs;
-    bs.Write(static_cast<int>(kClientVersion));
-    bs.Write(static_cast<uint8_t>(1));  // mod: 1 = SA-MP
+    bs.Write(static_cast<int>(variant.version));
+    bs.Write(static_cast<uint8_t>(variant.mod));
     bs.Write(nameLen);
     bs.Write(m_nick.c_str(), nameLen);
     bs.Write(challenge);
@@ -946,17 +977,18 @@ void Client::SendClientJoin(uint32_t challenge) {
     bs.Write(modLen);
     bs.Write(version.c_str(), modLen);
 
-    // The working Android client appends the voice-plugin connect packet to
-    // ClientJoin (Network::OnRaknetRpc -> SV::ConnectPacket). Servers built for
-    // that client treat a join without it as an invalid client.
-    bs.Write(static_cast<uint32_t>(0xDEADBEEF));  // SV::kSignature
-    bs.Write(static_cast<uint8_t>(11));           // SV::kVersion
-    bs.Write(static_cast<uint8_t>(1));            // micro present
+    if (variant.voice) {
+        // The working Android client appends the voice-plugin connect packet to
+        // ClientJoin (Network::OnRaknetRpc -> SV::ConnectPacket).
+        bs.Write(static_cast<uint32_t>(0xDEADBEEF));  // SV::kSignature
+        bs.Write(static_cast<uint8_t>(11));           // SV::kVersion
+        bs.Write(static_cast<uint8_t>(1));            // micro present
+    }
 
     filelog::Stage("join:rpc:begin");
     m_net.Rpc(&RPC_ClientJoin, bs, HIGH_PRIORITY, RELIABLE, 0);
     filelog::Stage("join:rpc:end");
-    Log("ClientJoin sent: ver=" + std::to_string(kClientVersion) + " mod=1 nick=" + m_nick +
+    Log(std::string("ClientJoin sent: ") + variant.label + " nick=" + m_nick +
         " challenge=" + std::to_string(challenge) + " authLen=" + std::to_string(authLen) +
         " client=" + version);
 }
