@@ -1,4 +1,4 @@
-#include "SampClient.h"
+﻿#include "SampClient.h"
 
 #include "FileLog.h"
 #include "PlayerSync.h"
@@ -99,10 +99,33 @@ Client& Client::Get() {
     return instance;
 }
 
+namespace {
+// Client build names SA-MP servers are known to accept, in the order we try
+// them. The value typed on the login screen always comes first.
+const char* const kVersionCandidates[] = {"0.3.7", "0.3.7-R5", "0.3.7-R4", "0.3.7-R3"};
+constexpr int kVersionCandidateCount =
+    static_cast<int>(sizeof(kVersionCandidates) / sizeof(kVersionCandidates[0]));
+}  // namespace
+
+void Client::SetClientVersion(const std::string& version) {
+    m_userVersion = version.empty() ? "0.3.7" : version;
+    m_versionIndex = 0;
+    m_authVariant = 0;
+}
+
+std::string Client::ClientVersion() const {
+    if (m_versionIndex == 0 && !m_userVersion.empty()) return m_userVersion;
+    const int index = m_versionIndex < kVersionCandidateCount ? m_versionIndex
+                                                             : kVersionCandidateCount - 1;
+    return kVersionCandidates[index];
+}
+
 void Client::InitDiagnostics() {
+#if !defined(_WIN32)
     const char* home = std::getenv("HOME");
     const std::string dir = home ? home : ".";
     filelog::Init(dir + "/Documents/samp.log");
+#endif
 
     if (m_logs.empty()) {
         const std::string previous = filelog::PreviousSessionTail(24);
@@ -207,12 +230,16 @@ void Client::SetState(int state, const char* reason) {
 }
 
 void Client::Log(const std::string& line) {
-    m_logs.push_back(line);
-    while (m_logs.size() > 400) m_logs.pop_front();
+    {
+        std::lock_guard<std::mutex> lock(m_logMutex);
+        m_logs.push_back(line);
+        while (m_logs.size() > 400) m_logs.pop_front();
+    }
     filelog::Write(line);
 }
 
 std::string Client::DumpLogText() const {
+    std::lock_guard<std::mutex> lock(m_logMutex);
     std::string out;
     for (const auto& line : m_logs) {
         out += line;
@@ -222,6 +249,11 @@ std::string Client::DumpLogText() const {
 }
 
 unsigned short Client::LogPort() {
+#if defined(_WIN32)
+    // The desktop harness gets its log on stdout; SOCKET is 64-bit on Win64 and
+    // the endpoint is only meant for the device.
+    return 0;
+#endif
     if (!m_logServer.Running()) {
         m_logServer.Start(8088, [this] { return DumpLogText(); });
     }
@@ -246,6 +278,7 @@ bool Client::PopChat(ChatMessage& out) {
 }
 
 bool Client::PopLog(std::string& out) {
+    std::lock_guard<std::mutex> lock(m_logMutex);
     if (m_logs.empty()) return false;
     out = m_logs.front();
     m_logs.pop_front();
@@ -314,6 +347,26 @@ void Client::Tick() {
         const bool sent = m_net.Send(out, SYSTEM_PRIORITY, RELIABLE, 0);
         m_pendingAuthReply.clear();
         Log(sent ? "auth key sent" : "auth key NOT sent (connection not ready)");
+    }
+
+    // Packet handlers only raise these flags: destroying the transport from
+    // inside Pump() would free the client whose queue is being drained.
+    if (m_needStop || m_needReconnect) {
+        m_net.Stop();
+        m_needStop = false;
+        if (m_needReconnect) {
+            m_needReconnect = false;
+            ResetSession();
+            m_pendingAuthReply.clear();
+            if (m_net.Start(m_host.c_str(), m_port)) {
+                RegisterRpcs();
+                m_state = kStateConnecting;
+                m_connectAttempts = 0;
+                m_connectAtMs = now;
+            } else {
+                SetState(kStateError, "cannot restart socket");
+            }
+        }
     }
 
     if (m_state == kStateConnecting && m_connectAttempts < 8 &&
@@ -510,24 +563,27 @@ void Client::OnPacket(Packet* packet) {
         }
         case ID_DISCONNECTION_NOTIFICATION:
         case ID_CONNECTION_LOST: {
-            // A drop right after ClientJoin usually means the server rejected our
-            // auth token; retry once with the other one before giving up.
             const bool rejectedJoin = (m_state == kStateJoining || m_state == kStateSpawning);
-            if (rejectedJoin && m_authVariant == 0) {
-                m_authVariant = 1;
-                Log("join rejected, retrying with AUTH_BS variant 2");
-                m_net.Stop();
-                ResetSession();
-                m_net.Start(m_host.c_str(), m_port);
-                RegisterRpcs();
-                m_connectAttempts = 0;
-                m_connectAtMs = 0.0;
-                m_state = kStateConnecting;
-                break;
+            if (rejectedJoin) {
+                // Rotate auth token first, then the client build string. The
+                // reconnect itself happens in Tick(), never from here, because
+                // this runs inside Pump().
+                ++m_authVariant;
+                if (m_authVariant > 1) {
+                    m_authVariant = 0;
+                    ++m_versionIndex;
+                }
+                if (m_versionIndex < kVersionCandidateCount) {
+                    Log("join rejected, next attempt: AUTH_BS variant " +
+                        std::to_string(m_authVariant + 1) + ", client=" + ClientVersion());
+                    m_needStop = true;
+                    m_needReconnect = true;
+                    break;
+                }
             }
+            m_needStop = true;
             SetState(kStateError, id == ID_CONNECTION_LOST ? "connection lost"
                                                            : "server closed the connection");
-            m_net.Stop();
             break;
         }
         case ID_CONNECTION_ATTEMPT_FAILED:
@@ -536,15 +592,15 @@ void Client::OnPacket(Packet* packet) {
             break;
         case ID_NO_FREE_INCOMING_CONNECTIONS:
             SetState(kStateError, "server is full");
-            m_net.Stop();
+            m_needStop = true;
             break;
         case ID_CONNECTION_BANNED:
             SetState(kStateError, "you are banned");
-            m_net.Stop();
+            m_needStop = true;
             break;
         case ID_INVALID_PASSWORD:
             SetState(kStateError, "invalid server password");
-            m_net.Stop();
+            m_needStop = true;
             break;
         case ID_PLAYER_SYNC:
             if (m_state == kStateInGame) {
@@ -782,7 +838,7 @@ void Client::OnRpc(int rpcId, const unsigned char* data, int bitLength) {
             if (len > 0 && len < sizeof(reason)) bs.Read(reason, len);
             reason[len] = '\0';
             SetState(kStateError, reason[0] ? reason : "connection rejected");
-            m_net.Stop();
+            m_needStop = true;
             break;
         }
         case 61: {  // RPC_DialogBox
@@ -812,10 +868,8 @@ void Client::OnRpc(int rpcId, const unsigned char* data, int bitLength) {
             AddChat(kChatInfo, "", "Сервер перезапускается, подключаемся заново", 0xFFFFC000);
             ResetSession();
             m_connectAttempts = 0;
-            m_net.Start(m_host.c_str(), m_port);
-            RegisterRpcs();
-            m_connectAtMs = 0.0;
-            m_state = kStateConnecting;
+            m_needStop = true;
+            m_needReconnect = true;
             break;
         }
         default:
@@ -857,7 +911,7 @@ void Client::SendClientJoin(uint32_t challenge) {
 
     const uint8_t nameLen = static_cast<uint8_t>(m_nick.size());
     const uint8_t authLen = static_cast<uint8_t>(std::strlen(authKey));
-    const std::string version = m_clientVersion.empty() ? kModName : m_clientVersion;
+    const std::string version = ClientVersion();
     const uint8_t modLen = static_cast<uint8_t>(version.size());
 
     RakNet::BitStream bs;

@@ -10,6 +10,7 @@
 #include "SampProtocol.h"
 
 #include <deque>
+#include <mutex>
 #include <string>
 
 namespace samp {
@@ -47,9 +48,10 @@ public:
     // Call at display rate. Pumps the socket, simulates movement, sends sync.
     void Tick();
 
-    // Client build string sent in ClientJoin; some servers validate it strictly.
-    void SetClientVersion(const std::string& version) { m_clientVersion = version; }
-    const std::string& ClientVersion() const { return m_clientVersion; }
+    // Client build string sent in ClientJoin; servers validate it strictly, so
+    // the UI value is tried first and then the usual 0.3.7 build names.
+    void SetClientVersion(const std::string& version);
+    std::string ClientVersion() const;
 
     void SetInput(float lr, float ud, bool sprint, bool jump);
     void SetCameraYaw(float degrees) { m_cameraYaw = degrees; }
@@ -111,7 +113,10 @@ private:
     std::string m_error;
     std::string m_nick;
     std::string m_host;
-    std::string m_clientVersion = "0.3.7";
+    std::string m_userVersion = "0.3.7";
+    int m_versionIndex = 0;
+    bool m_needStop = false;
+    bool m_needReconnect = false;
     unsigned short m_port = 7777;
 
     uint16_t m_localId = kInvalidPlayerId;
@@ -149,6 +154,8 @@ private:
 
     RemotePlayer m_players[kMaxPlayers];
     std::deque<ChatMessage> m_chat;
+    // m_logs is read by the LogServer thread and written by the client thread.
+    mutable std::mutex m_logMutex;
     std::deque<std::string> m_logs;
     LogServer m_logServer;
 };

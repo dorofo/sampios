@@ -14,3 +14,4 @@ SampIOS/Info.plist
 gh_login.txt
 run_cli.txt
 *.log
+tools/build_asan/

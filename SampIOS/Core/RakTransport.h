@@ -40,7 +40,13 @@ public:
     void Pump(const PacketHandler& handler);
 
 private:
+    void Destroy();
+
     RakClient* m_client = nullptr;
+    // Stop() may be called from inside a packet handler; deleting the client
+    // there would make Pump() touch freed memory, so it is deferred.
+    bool m_pumping = false;
+    bool m_stopPending = false;
 };
 
 }  // namespace samp

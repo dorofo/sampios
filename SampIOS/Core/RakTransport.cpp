@@ -21,10 +21,19 @@ bool Transport::Start(const char* host, unsigned short port) {
 }
 
 void Transport::Stop() {
+    if (m_pumping) {
+        m_stopPending = true;
+        return;
+    }
+    Destroy();
+}
+
+void Transport::Destroy() {
     if (!m_client) return;
-    if (m_client->IsConnected()) m_client->Disconnect(100);
-    delete m_client;
+    RakClient* client = m_client;
     m_client = nullptr;
+    if (client->IsConnected()) client->Disconnect(100);
+    delete client;
 }
 
 bool Transport::Connected() const {
@@ -45,10 +54,20 @@ void Transport::Rpc(int* rpcId, RakNet::BitStream& stream, PacketPriority priori
 }
 
 void Transport::Pump(const PacketHandler& handler) {
-    if (!m_client) return;
-    while (Packet* packet = m_client->Receive()) {
+    if (!m_client || m_pumping) return;
+
+    m_pumping = true;
+    RakClient* client = m_client;
+    while (Packet* packet = client->Receive()) {
         if (handler) handler(packet);
-        m_client->DeallocatePacket(packet);
+        client->DeallocatePacket(packet);
+        if (m_stopPending) break;
+    }
+    m_pumping = false;
+
+    if (m_stopPending) {
+        m_stopPending = false;
+        Destroy();
     }
 }
 
