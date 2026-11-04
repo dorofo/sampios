@@ -946,6 +946,13 @@ void Client::SendClientJoin(uint32_t challenge) {
     bs.Write(modLen);
     bs.Write(version.c_str(), modLen);
 
+    // The working Android client appends the voice-plugin connect packet to
+    // ClientJoin (Network::OnRaknetRpc -> SV::ConnectPacket). Servers built for
+    // that client treat a join without it as an invalid client.
+    bs.Write(static_cast<uint32_t>(0xDEADBEEF));  // SV::kSignature
+    bs.Write(static_cast<uint8_t>(11));           // SV::kVersion
+    bs.Write(static_cast<uint8_t>(1));            // micro present
+
     filelog::Stage("join:rpc:begin");
     m_net.Rpc(&RPC_ClientJoin, bs, HIGH_PRIORITY, RELIABLE, 0);
     filelog::Stage("join:rpc:end");
