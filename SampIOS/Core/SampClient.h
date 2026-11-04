@@ -154,6 +154,10 @@ private:
     // box, so remember the challenge and answer again right before ClientJoin.
     std::string m_authChallenge;
     bool m_pendingJoin = false;
+    // Game modes show a registration/login dialog before the player may spawn;
+    // requesting a class early gets the client kicked.
+    bool m_pendingClass = false;
+    bool m_pendingSpawn = false;
     uint32_t m_joinChallenge = 0;
     DialogInfo m_dialog;
     int m_rxLogBudget = 80;

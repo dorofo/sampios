@@ -373,6 +373,12 @@ void Client::Tick() {
     // ClientJoin goes out only now, when the connection is CONNECTED, and the
     // auth answer is repeated first: the copy sent during the handshake is
     // queued on a link that is not established yet and never leaves.
+    if (m_pendingSpawn && !m_dialog.active && m_state == kStateSpawning) {
+        m_pendingSpawn = false;
+        Log("dialog answered, spawning");
+        SendSpawn();
+    }
+
     if (m_pendingJoin && m_net.Connected()) {
         m_pendingJoin = false;
         // The auth answer went out during the handshake; sending it twice makes
@@ -751,7 +757,14 @@ void Client::OnRpc(int rpcId, const unsigned char* data, int bitLength) {
             SetState(kStateSpawning);
             Log(std::string("joined server: ") + hostName);
             AddChat(kChatInfo, "", std::string("Подключено к ") + hostName, 0xFFB9C9BF);
-            SendRequestClass();
+            // Modes that pop a registration dialog kick the client if it spawns
+            // before answering, so the class request waits for the dialog.
+            if (m_dialog.active) {
+                m_pendingClass = true;
+                Log("waiting for the dialog before requesting a class");
+            } else {
+                SendRequestClass();
+            }
             break;
         }
         case 128: {  // RPC_RequestClass
@@ -771,7 +784,15 @@ void Client::OnRpc(int rpcId, const unsigned char* data, int bitLength) {
             uint8_t outcome = 0;
             bs.Read(outcome);
             if (outcome == 2 || (outcome && m_waitingSpawnReply)) {
-                SendSpawn();
+                if (m_dialog.active) {
+                    // Spawning with a dialog still open makes the game mode kick
+                    // the player as unregistered, so wait for the answer.
+                    m_pendingSpawn = true;
+                    m_waitingSpawnReply = false;
+                    Log("spawn held until the dialog is answered");
+                } else {
+                    SendSpawn();
+                }
             } else {
                 m_waitingSpawnReply = false;
                 Log("server refused spawn");

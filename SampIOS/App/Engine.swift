@@ -278,8 +278,8 @@ final class GameEngine: ObservableObject {
         var kind: Int32 = 0
         var colour: UInt32 = 0
         while samp_poll_chat(&name, Int32(name.count), &text, Int32(text.count), &kind, &colour) != 0 {
-            let line = ChatLine(name: String(cString: name),
-                                text: String(cString: text),
+            let line = ChatLine(name: Self.decode(name),
+                                text: Self.decode(text),
                                 colour: Self.color(from: colour),
                                 isServer: kind == 1)
             chat.append(line)
@@ -335,10 +335,24 @@ final class GameEngine: ObservableObject {
         return result
     }
 
-    /// Reads a fixed-size C char array (imported as a Swift tuple) as UTF-8.
+    /// Decodes a NUL-terminated byte buffer, preferring UTF-8 and falling back
+    /// to the Windows-1251 code page used by SA-MP game modes.
+    static func decode(_ buffer: [CChar]) -> String {
+        let bytes = buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }
+        let data = Data(bytes)
+        if let text = String(data: data, encoding: .utf8) { return text }
+        if let text = String(data: data, encoding: .windowsCP1251) { return text }
+        return ""
+    }
+
+    /// Reads a fixed-size C char array. SA-MP game modes send text in the
+    /// Windows-1251 code page, so UTF-8 is tried first and 1251 as a fallback.
     static func cstr<T>(_ value: inout T) -> String {
         withUnsafeBytes(of: &value) { raw in
-            String(decoding: raw.prefix { $0 != 0 }, as: UTF8.self)
+            let bytes = Data(raw.prefix { $0 != 0 })
+            if let text = String(data: bytes, encoding: .utf8) { return text }
+            if let text = String(data: bytes, encoding: .windowsCP1251) { return text }
+            return String(decoding: bytes, as: UTF8.self)
         }
     }
 
